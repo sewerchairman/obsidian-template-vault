@@ -1,0 +1,10 @@
+{
+  "file-explorer": true,
+  "global-search": true,
+  "switcher": true,
+  "backlink": true,
+  "outline": true,
+  "command-palette": true,
+  "templates": true,
+  "file-recovery": true
+}

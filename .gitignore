@@ -1,0 +1,13 @@
+node_modules/
+test-output/
+data.json
+install.py
+verify-delivery.js
+delivery-verification.json
+*.log
+__pycache__/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

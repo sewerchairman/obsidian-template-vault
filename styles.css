@@ -1,0 +1,10 @@
+.vault-template-modal { max-width: 720px; }
+.vault-template-muted { color: var(--text-muted); line-height: 1.6; }
+.vault-template-path { overflow-wrap: anywhere; font-family: var(--font-monospace); font-size: var(--font-small); }
+.vault-template-card { padding: 16px; margin: 16px 0; border: 1px solid var(--background-modifier-border); border-radius: 10px; background: var(--background-secondary); }
+.vault-template-card p { margin-bottom: 0; }
+.vault-template-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 0 12px; }
+.vault-template-list .setting-item { padding: 10px 0; }
+.vault-template-list .setting-item-name { font-size: var(--font-small); overflow-wrap: anywhere; }
+.vault-template-modal .setting-item input[type="text"] { width: 250px; max-width: 100%; }
+@media (max-width: 650px) { .vault-template-modal .setting-item { flex-wrap: wrap; gap: 8px; } }

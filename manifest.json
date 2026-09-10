@@ -1,0 +1,10 @@
+{
+  "id": "local-vault-template",
+  "name": "仓库模板",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "选择常用笔记作为仓库模板，从模板创建新仓库，自动带上语法速查和学习笔记框架。",
+  "author": "sewerchairman",
+  "authorUrl": "https://github.com/sewerchairman",
+  "isDesktopOnly": true
+}
