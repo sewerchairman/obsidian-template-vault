@@ -1,157 +1,119 @@
-# Obsidian 仓库模板 · Template Vault
+# Template Vault
 
-在 Obsidian 中选好常用笔记和附件，保存成仓库模板；下一次创建仓库时，一并带上语法速查、写作框架和必要文件。
+Reusable vault templates for Obsidian. 可复用的仓库模板。
 
-**适用于桌面版 Obsidian。** 插件界面为中文，插件 ID 为 `local-vault-template`，当前版本为 **1.0.0**。
+English | [简体中文](README.zh-CN.md)
 
-## 解决什么问题
+Save selected notes and attachments as a template, then create new vaults with the same starting content. **Version 1.1.0 · Desktop only · Obsidian 1.8.7+**
 
-每次新建 Obsidian 仓库，都要重复复制 Markdown 语法笔记、常用写作框架和入门说明，容易漏掉文件或图片。Obsidian 内置“模板”主要负责向当前笔记插入文字，不能直接替你创建一套带有默认内容的新仓库。
+## Why this plugin?
 
-本插件增加一个“仓库模板”按钮，让你把这套准备工作保存下来，再通过插件创建新仓库。对于刚接触 Markdown 的用户，新仓库里始终有一篇可查阅的语法笔记，不用重新寻找或复制。
+Starting a new vault often means copying the same reference notes, writing outlines, and attachments again. Obsidian’s built-in Templates plugin inserts text into one note; Template Vault creates a new vault folder with a reusable set of files.
 
-例如：先把“Markdown 常用语法笔记”“学习笔记模板”和“开始使用”设为仓库模板，再创建“Java 学习”“项目文档”等独立仓库，它们便会分别拥有这套基础文件。
+For example, prepare a Markdown reference and a study-note outline once, then include them in separate vaults for programming, projects, or courses. The [example template](example-vault) includes a Chinese Markdown reference and study-note outline. Changing the UI language does not translate these notes or rename files.
 
-## 功能
+## Features
 
-- **设置仓库模板**：选择已有模板文件夹，或勾选当前仓库的笔记保存成模板快照。
-- **从模板新建仓库**：填写名称和存放位置，复制模板中的文件并保留目录结构。
-- **保留附件**：保存所选笔记时，一并复制 Obsidian 已识别的图片、PDF 等非笔记附件引用。
-- **继续复用**：通过插件创建的新仓库也携带本插件及模板设置，可继续创建下一份仓库。
-- **方便查阅**：面板可以直接打开固定路径下的 Markdown 语法速查笔记。
-- **避免覆盖**：目标文件夹已存在时停止；复制完成后校验文件内容。
+- Select an existing template folder, or save selected notes from the current vault as a snapshot.
+- Include recognized image, PDF, and other non-note attachment links.
+- Create a new vault while preserving the template’s folder structure.
+- Include this plugin and its preferences in the new vault for continued reuse.
+- Switch between Auto, English, and 中文 without restarting the plugin.
+- Refuse to overwrite existing folders and verify copied file contents.
 
-仓库内附带一个可直接使用的 [示例仓库模板](example-vault)，其中包括带示例的 [Markdown 常用语法笔记](example-vault/模板/Markdown常用语法笔记.md) 和 [学习笔记模板](example-vault/模板/学习笔记模板.md)。
+## Install or update
 
-## 安装
+1. Download `local-vault-template-1.1.0.zip` from the [1.1.0 release](https://github.com/sewerchairman/obsidian-template-vault/releases/tag/1.1.0).
+2. Extract its `local-vault-template` folder into your vault’s `.obsidian/plugins/` directory. Use your configured configuration directory if it differs from `.obsidian`.
+3. Reload Obsidian and enable **Template Vault** in Community plugins. Disable Restricted mode if prompted.
 
-此插件目前采用手动安装，尚未提交到 Obsidian 社区插件目录。
-
-1. 下载 [插件安装包 local-vault-template-1.0.0.zip](https://github.com/sewerchairman/obsidian-template-vault/raw/refs/heads/main/dist/local-vault-template-1.0.0.zip)。
-2. 将 ZIP 中的 `local-vault-template` 文件夹解压到你的仓库的 `.obsidian/plugins/` 目录。
-3. 重新加载或重启 Obsidian。
-4. 在“设置 → 第三方插件”中启用“仓库模板”。如果处于受限模式，先关闭受限模式。
-
-最终目录应为：
+The runtime requires only:
 
 ```text
-你的仓库/
-└── .obsidian/
-    └── plugins/
-        └── local-vault-template/
-            ├── manifest.json
-            ├── main.js
-            ├── vault-ops.js
-            ├── styles.css
-            └── LICENSE
+your-vault/.obsidian/plugins/local-vault-template/
+├── main.js
+├── manifest.json
+└── styles.css
 ```
 
-也可以从源码仓库手动复制 `manifest.json`、`main.js`、`vault-ops.js`、`styles.css` 到上述插件目录。
+You may download these files individually from the release instead. When upgrading, **preserve `data.json`** and replace only the program files. Existing template paths and selected notes are retained. Older versions left a separate `vault-ops.js` file; 1.1.0 no longer uses it at runtime.
 
-> 插件包与仓库模板是两部分。插件包提供功能；`example-vault` 提供默认笔记内容。第一次使用需选择一个模板文件夹，安装插件本身不会把整篇速查笔记写入已有仓库。
+This project is not yet listed in the Obsidian Community directory. See [submission preparation](docs/COMMUNITY-SUBMISSION.md).
 
-## 第一次使用：采用示例模板
+**Community submission blocker:** this version copies itself into new vaults. The [official developer policies](https://docs.obsidian.md/community-directory/developer-policies) prohibit plugins from installing or updating themselves. That behavior must be removed before submission; 1.1.0 preserves it for the existing manual-install workflow.
 
-1. 下载本仓库源码 ZIP，或克隆仓库，取得其中的 `example-vault` 文件夹。
-2. 将 `example-vault` 放在当前 Obsidian 仓库之外，放到一个准备长期保留的位置。
-3. 点击左侧工具栏的文件夹加号按钮，提示文字为“仓库模板：设置模板 / 新建仓库”。
-4. 点击“设置模板”，在“使用已有模板文件夹”中填写 `example-vault` 的完整路径。
-5. 点击“设为当前模板”，然后回到插件面板创建新仓库。
+## Language
 
-也可以通过命令面板搜索以下命令：
+The default is **Auto**. The plugin reads the language configured in Obsidian using its public `getLanguage()` API:
 
-- `仓库模板：打开仓库模板`
-- `仓库模板：设置仓库模板`
-- `仓库模板：从模板新建仓库`
+| Preference | Behavior |
+| --- | --- |
+| Auto | Chinese for `zh`, `zh-CN`, `zh-TW`, and other Chinese variants; English for other or unavailable locales |
+| English | Always English, regardless of the client language |
+| 中文 | Always Simplified Chinese, regardless of the client language |
 
-## 保存自己的仓库模板
+Change **Language** in the main plugin panel or **Settings → Template Vault**. The choice is saved and updates open panels, tooltips, and command labels. It also follows new vaults created by the plugin. The static plugin name in the installed-plugin list remains **Template Vault**.
 
-1. 在当前仓库中准备好想复用的笔记。
-2. 打开插件的“设置模板”。
-3. 在“从当前仓库保存新模板”中勾选需要的笔记，可按文件名搜索。
-4. 填写模板名称和存放位置。模板目录必须位于当前仓库之外，且目标目录不能已经存在。
-5. 点击“保存并设为仓库模板”。
+## Use an existing template
 
-保存时会保留所选笔记的相对目录结构，并复制 Obsidian 已识别的非笔记附件。关联的其他 Markdown 笔记不会自动全部复制，需要时请同时勾选。
+1. Put the [example-vault](example-vault) folder, or your own template folder, outside the current vault. Keep it in a permanent location.
+2. Click the folder-plus ribbon icon, or search for **Template Vault** in the command palette.
+3. Open **Set template**, enter the template folder’s absolute path, and click **Use this template**.
+4. Return to the panel and select **New vault**.
 
-模板是一份独立快照：以后修改原笔记不会影响已有模板。要让后续创建的仓库采用新内容，请重新保存模板。已经创建的仓库也不会被自动更改。
+Installing the plugin alone does not add example notes to an existing vault. The plugin and example content are separate downloads; obtain `example-vault` from this repository’s source ZIP or a clone.
 
-## 从模板创建新仓库
+## Save a template from your notes
 
-1. 打开插件面板，点击“新建仓库”。
-2. 输入仓库名称和父文件夹路径。父文件夹需要已经存在。
-3. 点击“创建仓库”，插件将复制模板并校验文件内容。
-4. 创建完成后，点击“复制路径”，再点击“打开仓库管理器”。
-5. 在 Obsidian 中选择“打开文件夹为仓库”，选中刚创建的文件夹。
+1. Open **Set template** and select the notes to reuse. Use the filename filter as needed.
+2. Choose a template name and an existing parent folder outside the current vault.
+3. Select **Save and use template**.
 
-新仓库中会包含模板文件和本插件。首次打开如处于受限模式，请启用“仓库模板”，即可继续使用。
+The template is an independent snapshot. Later edits to the source notes do not change it. Save another snapshot to update the content used by future vaults. Linked Markdown notes must be selected separately; recognized non-note attachments are collected automatically.
 
-**必须使用本插件里的“新建仓库”入口才能继承模板。** 本插件没有替换 Obsidian 原生的“创建新仓库”按钮，也没有设置全局默认仓库内容。
+## Create a vault
 
-## 与 Obsidian 内置模板的区别
+1. Select **New vault** in the plugin panel.
+2. Enter a vault name and an existing parent folder, then select **Create vault**.
+3. On completion, copy the new path and select **Open vault manager**.
+4. Choose **Open folder as vault** and select the created folder.
 
-| 功能 | 本插件：仓库模板 | Obsidian 内置模板 |
-| --- | --- | --- |
-| 主要用途 | 创建整个仓库的基础文件 | 在当前笔记中插入文字 |
-| 操作对象 | 笔记、附件、部分配置 | 单篇笔记的光标位置 |
-| 常见内容 | 语法速查、说明、写作框架 | 标题、日期、章节结构 |
-| 是否自动应用到所有原生新仓库 | 否，需通过插件创建 | 否 |
+The new vault includes the plugin. Enable it if the new vault starts in Restricted mode.
 
-两者可以配合使用：用本插件创建仓库，再用内置“插入模板”命令填写具体学习笔记。
+**Use this plugin’s New vault action to inherit a template.** Obsidian’s built-in Create new vault action is unchanged. Preferences are stored per vault and inherited by newly created vaults; they are not a global setting synchronized across existing vaults.
 
-## 文件处理与限制
+## File access and limitations
 
-- 仅支持桌面端；没有移动端支持。
-- 仅在点击保存或创建时执行本地文件操作，不联网、不上传笔记、不启动后台监控。
-- 同名目标文件夹不会覆盖；新仓库不能嵌套在当前仓库或模板文件夹内部。
-- 不复制 `.git`、`.trash`、`node_modules`、窗口状态或其他第三方插件；拒绝目录联接和符号链接。
-- 从已有模板读取 `.obsidian` 配置时，仅包含 `templates.json`、`core-plugins.json`、`app.json`、`appearance.json`。创建时携带本插件，并设置本插件的启用列表。
-- 模板设置按仓库保存，并传给通过插件创建的新仓库；在一个仓库中切换模板，不会同步修改其他已有仓库。
-- 附件收集依赖 Obsidian 的已解析链接。未被识别的原始 HTML 图片引用不会自动收集，建议使用 `![[图片路径]]`。
-- 写入失败时，部分文件可能已创建；插件会提示路径并保留文件供检查，不会自动删除。确认原因后换一个名称重试。
-- 模板文件夹需要保留在原位置。移动文件夹或更换电脑后，请在插件中重新设置路径。
+The plugin reads and writes **outside the current vault** when you explicitly save a template or create a new vault. It copies its own runtime and an enabled-plugin configuration into newly created vaults. No network requests, accounts, payments, telemetry, or background monitoring are required by the plugin.
 
-## 开发与验证
+- Existing target directories are never overwritten. Nested vault destinations and symbolic links/junctions are rejected.
+- `.git`, `.trash`, `node_modules`, workspace state, and other third-party plugins are excluded.
+- Templates may include `.obsidian/templates.json`, `core-plugins.json`, `app.json`, and `appearance.json`. The current vault’s template-folder settings are read using `Vault.configDir`; newly created vaults use the standard `.obsidian` directory.
+- Attachment collection relies on Obsidian’s resolved links. Unrecognized raw HTML image references are not automatically collected; prefer native embeds.
+- A failed operation can leave a partial destination. The path is reported, and files are retained for inspection rather than deleted automatically.
+- If the template folder moves, select its new location in the plugin.
+- UI translations do not modify user content. Chinese locale variants currently share the Simplified Chinese UI.
 
-需要 Node.js 18 或更新版本。项目没有额外 npm 依赖。
+## Development
+
+Node.js 18+ is required. No additional npm dependencies are needed.
 
 ```bash
 git clone https://github.com/sewerchairman/obsidian-template-vault.git
 cd obsidian-template-vault
 node build.js
 node --check main.js
-node --test test.js
+node --test test.js i18n.test.js
 ```
 
-主要文件：
+`main-source.js` implements the UI; `vault-ops.js` implements file operations; `i18n.js` contains translations and locale handling. `build.js` bundles them into `main.js`. No relative source-module loading is required in an installed plugin.
 
-| 文件 | 用途 |
-| --- | --- |
-| `main-source.js` | 面板、按钮、命令与设置页 |
-| `vault-ops.js` | 模板复制、路径检查和文件校验 |
-| `build.js` | 生成可安装的 `main.js` |
-| `main.js` | 构建后的插件入口 |
-| `styles.css` | 插件界面样式 |
-| `test.js` | 文件操作和入口注册测试 |
-| `example-vault/` | 可复用的语法笔记与仓库框架 |
-| `package-plugin.py` | 生成安装 ZIP 和校验值，需要 Python 3 |
+Tests cover file preservation, two generations of vault creation from a three-file installation, locale detection, manual overrides, preference persistence, translated errors, and UI refresh with an Obsidian API test double. These tests do not replace visual or interaction checks in a real Obsidian window.
 
-测试覆盖两代仓库创建、插件继承、中文路径、附件字节一致、同名目录保护、路径越界、目录联接、配置筛选和插件入口注册。界面入口测试使用 API 替身，不等同于真实 Obsidian 窗口的视觉或点击测试。
-
-修改代码后先运行构建和测试。如需重新生成安装包：
+To generate the installation ZIP and checksums, use Python 3:
 
 ```bash
 python package-plugin.py
 ```
 
-## 许可证
-
-采用仓库原有的 [MIT License](LICENSE)。
-
-## 官方参考
-
-- [Obsidian 插件示例与手动安装](https://github.com/obsidianmd/obsidian-sample-plugin)
-- [Obsidian 公开 API](https://github.com/obsidianmd/obsidian-api)
-- [管理仓库](https://obsidian.md/help/manage-vaults)
-- [内置模板插件](https://obsidian.md/help/plugins/templates)
-- [URI 与仓库管理器](https://obsidian.md/help/uri)
+See the [changelog](CHANGELOG.md) and [Chinese documentation](README.zh-CN.md). Licensed under the existing [MIT License](LICENSE).

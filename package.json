@@ -1,8 +1,8 @@
 {
   "name": "obsidian-template-vault",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Obsidian 桌面仓库模板插件：保存常用笔记和附件，从模板创建新仓库。",
+  "description": "Reusable vault templates for Obsidian. 可复用的仓库模板。",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "build": "node build.js",
-    "test": "node --test test.js",
+    "test": "node --test test.js i18n.test.js",
     "check": "node --check main.js"
   }
 }

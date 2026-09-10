@@ -6,6 +6,14 @@ const ID = 'local-vault-template';
 const CONFIGS = new Set(['templates.json', 'core-plugins.json', 'app.json', 'appearance.json']);
 const BLOCKED = new Set(['.git', '.trash', 'node_modules', '.DS_Store']);
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
+class TemplateError extends Error {
+  constructor(code, values = {}, cause) {
+    super(code);
+    this.templateCode = code;
+    this.values = values;
+    this.cause = cause;
+  }
+}
 
 function inside(root, target) {
   const rel = path.relative(root, target);
@@ -13,27 +21,27 @@ function inside(root, target) {
 }
 function nameCheck(name) {
   if (!name || name.trim() !== name || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /[. ]$/.test(name) || /^\.{1,2}$/.test(name) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)) {
-    throw new Error('请填写有效的文件夹名称，不要包含斜杠、冒号或末尾空格。');
+    throw new TemplateError('invalidName');
   }
-  if (name.length > 100) throw new Error('名称过长，请使用 100 个字符以内的名称。');
+  if (name.length > 100) throw new TemplateError('longName');
   return name;
 }
 async function folder(value) {
-  if (!path.isAbsolute(value)) throw new Error('请填写文件夹的完整路径，例如 D:\\Obsidianhub。');
+  if (!path.isAbsolute(value)) throw new TemplateError('absolutePath');
   const real = await fs.realpath(value);
-  if (!(await fs.stat(real)).isDirectory()) throw new Error('路径不是文件夹：' + value);
+  if (!(await fs.stat(real)).isDirectory()) throw new TemplateError('notFolder', { path: value });
   return real;
 }
 async function fileInside(root, relative) {
-  if (path.isAbsolute(relative)) throw new Error('文件必须使用仓库内的相对路径。');
+  if (path.isAbsolute(relative)) throw new TemplateError('relativePath');
   const target = path.resolve(root, relative);
-  if (!inside(root, target)) throw new Error('文件路径超出仓库：' + relative);
+  if (!inside(root, target)) throw new TemplateError('outsideVault', { path: relative });
   let walk = root;
   for (const part of path.relative(root, target).split(path.sep)) {
     walk = path.join(walk, part);
-    if ((await fs.lstat(walk)).isSymbolicLink()) throw new Error('模板不包含快捷链接或目录联接：' + relative);
+    if ((await fs.lstat(walk)).isSymbolicLink()) throw new TemplateError('symlink', { path: relative });
   }
-  if (!(await fs.stat(target)).isFile()) throw new Error('不是普通文件：' + relative);
+  if (!(await fs.stat(target)).isFile()) throw new TemplateError('notFile', { path: relative });
   return target;
 }
 async function listTemplate(source) {
@@ -44,13 +52,13 @@ async function listTemplate(source) {
       if (BLOCKED.has(entry.name)) continue;
       const relative = prefix ? prefix + '/' + entry.name : entry.name;
       if (relative.startsWith('.obsidian/') && !CONFIGS.has(relative.slice(10))) continue;
-      if (entry.isSymbolicLink()) throw new Error('模板中包含快捷链接或目录联接：' + relative);
+      if (entry.isSymbolicLink()) throw new TemplateError('symlink', { path: relative });
       if (entry.isDirectory()) await walk(path.join(dir, entry.name), relative);
       else if (entry.isFile()) files.push(relative);
     }
   }
   await walk(root);
-  if (!files.some(f => f.toLowerCase().endsWith('.md'))) throw new Error('模板文件夹中没有 Markdown 笔记。');
+  if (!files.some(f => f.toLowerCase().endsWith('.md'))) throw new TemplateError('emptyTemplate');
   return { root, files: files.sort() };
 }
 async function destination(parent, name, forbidden) {
@@ -58,9 +66,9 @@ async function destination(parent, name, forbidden) {
   const target = path.join(root, nameCheck(name));
   for (const protectedRoot of forbidden) {
     const real = await folder(protectedRoot);
-    if (inside(real, target) || inside(target, real)) throw new Error('请将新文件夹放在当前仓库和模板文件夹之外，避免仓库嵌套。');
+    if (inside(real, target) || inside(target, real)) throw new TemplateError('nested');
   }
-  try { await fs.lstat(target); throw new Error('目标文件夹已经存在，请换一个名称：' + target); }
+  try { await fs.lstat(target); throw new TemplateError('exists', { path: target }); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   return target;
 }
@@ -84,7 +92,7 @@ function coreSettings(entries) {
   const value = entry ? JSON.parse(entry.bytes.toString('utf8').replace(/^\uFEFF/, '')) : { 'file-explorer': true, 'global-search': true, 'switcher': true, 'backlink': true, 'outline': true, 'command-palette': true, 'file-recovery': true };
   if (Array.isArray(value)) { if (!value.includes('templates')) value.push('templates'); }
   else if (value && typeof value === 'object') value.templates = true;
-  else throw new Error('模板中的核心插件配置不是有效的对象或数组。');
+  else throw new TemplateError('invalidCore');
   put(entries, '.obsidian/core-plugins.json', value);
 }
 async function writeNew(target, entries) {
@@ -93,24 +101,24 @@ async function writeNew(target, entries) {
   try {
     for (const entry of entries) {
       const out = path.resolve(target, entry.relative);
-      if (!inside(target, out)) throw new Error('不合法的目标路径。');
+      if (!inside(target, out)) throw new TemplateError('invalidTarget');
       await fs.mkdir(path.dirname(out), { recursive: true });
       await fs.writeFile(out, entry.bytes, { flag: 'wx' });
-      if (hash(await fs.readFile(out)) !== hash(entry.bytes)) throw new Error('写入校验失败：' + entry.relative);
+      if (hash(await fs.readFile(out)) !== hash(entry.bytes)) throw new TemplateError('verifyFailed', { path: entry.relative });
     }
   } catch (error) {
-    throw new Error('创建未完成，已写入的文件保留在 ' + target + '。请检查后使用另一个名称重试。原因：' + error.message);
+    throw new TemplateError('partial', { path: target }, error);
   }
   return { target, files: entries.length, hashes: entries.map(e => ({ path: e.relative, sha256: hash(e.bytes) })) };
 }
-async function snapshot({ vaultRoot, selected, attachments = [], parent, name, templatePath, templateFolder = '模板' }) {
+async function snapshot({ vaultRoot, selected, attachments = [], parent, name, templatePath, templateFolder = '模板', configDir = '.obsidian' }) {
   const source = await folder(vaultRoot);
-  if (!selected.length) throw new Error('请至少选择一篇笔记。');
+  if (!selected.length) throw new TemplateError('selectOne');
   const protectedRoots = [source];
   if (templatePath) protectedRoots.push(templatePath);
   const target = await destination(parent, name, protectedRoots);
   const entries = await collect(source, [...selected, ...attachments]);
-  const templateInfo = path.join(source, '.obsidian/templates.json');
+  const templateInfo = path.join(source, configDir, 'templates.json');
   try {
     const original = JSON.parse((await fs.readFile(templateInfo, 'utf8')).replace(/^\uFEFF/, ''));
     templateFolder = original.folder || templateFolder;
@@ -125,7 +133,7 @@ async function createVault({ templatePath, parent, name, vaultRoot, pluginDir, s
   const entries = await collect(template.root, template.files);
   coreSettings(entries);
   const pluginRoot = await folder(pluginDir);
-  for (const file of ['manifest.json', 'main.js', 'vault-ops.js', 'styles.css']) {
+  for (const file of ['manifest.json', 'main.js', 'styles.css']) {
     const source = await fileInside(pluginRoot, file);
     entries.push({ relative: '.obsidian/plugins/' + ID + '/' + file, bytes: await fs.readFile(source) });
   }
@@ -133,4 +141,4 @@ async function createVault({ templatePath, parent, name, vaultRoot, pluginDir, s
   put(entries, '.obsidian/community-plugins.json', [ID]);
   return writeNew(target, entries);
 }
-module.exports = { ID, inside, nameCheck, folder, listTemplate, snapshot, createVault };
+module.exports = { ID, TemplateError, inside, nameCheck, folder, listTemplate, snapshot, createVault };

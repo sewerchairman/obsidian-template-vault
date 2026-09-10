@@ -1,169 +1,192 @@
-const { Plugin, PluginSettingTab, Modal, Setting, Notice, FileSystemAdapter } = require('obsidian');
+const { Plugin, PluginSettingTab, Modal, Setting, Notice, FileSystemAdapter, getLanguage, setTooltip } = require('obsidian');
 const path = require('path');
 const ops = require('./vault-ops');
+const i18n = require('./i18n');
 
-const DEFAULTS = { templatePath: '', parentPath: '', selected: ['开始使用.md', '仓库模板插件使用说明.md', '模板/Markdown常用语法笔记.md', '模板/学习笔记模板.md'] };
+const DEFAULTS = { language: 'auto', templatePath: '', parentPath: '', selected: ['开始使用.md', '仓库模板插件使用说明.md', '模板/Markdown常用语法笔记.md', '模板/学习笔记模板.md'] };
 function description(el, text) { el.createEl('p', { text, cls: 'vault-template-muted' }); }
-async function action(button, run) {
+async function action(plugin, button, run) {
   button.setDisabled(true);
   try { await run(); }
-  catch (error) { new Notice(error.message || String(error), 10000); console.error('[仓库模板]', error); }
+  catch (error) { new Notice(plugin.error(error), 10000); console.error('[Template Vault]', error); }
   finally { button.setDisabled(false); }
+}
+function languageSetting(el, plugin) {
+  new Setting(el).setName(plugin.t('language')).setDesc(plugin.t('languageHint')).addDropdown(dropdown => {
+    dropdown.addOption('auto', plugin.t('auto')).addOption('en', 'English').addOption('zh', '中文')
+      .setValue(plugin.settings.language).onChange(value => action(plugin, dropdown, () => plugin.setLanguage(value)));
+  });
 }
 
 class VaultTemplatePlugin extends Plugin {
   async onload() {
     if (!(this.app.vault.adapter instanceof FileSystemAdapter)) return;
     this.settings = { ...DEFAULTS, ...(await this.loadData()) };
+    if (!['auto', 'en', 'zh'].includes(this.settings.language)) this.settings.language = 'auto';
+    if (!Array.isArray(this.settings.selected)) this.settings.selected = [...DEFAULTS.selected];
+    this.modals = new Set();
     this.root = this.app.vault.adapter.getBasePath();
     this.settings.parentPath ||= path.dirname(this.root);
     this.settings.templatePath ||= path.join(path.dirname(this.root), '_仓库模板');
-    this.addRibbonIcon('folder-plus', '仓库模板：设置模板 / 新建仓库', () => this.openHome());
-    this.addCommand({ id: 'open', name: '打开仓库模板', callback: () => this.openHome() });
-    this.addCommand({ id: 'set-template', name: '设置仓库模板', callback: () => new SaveTemplateModal(this).open() });
-    this.addCommand({ id: 'create-vault', name: '从模板新建仓库', callback: () => new CreateVaultModal(this).open() });
-    this.addSettingTab(new TemplateSettingTab(this.app, this));
+    this.ribbon = this.addRibbonIcon('folder-plus', this.t('ribbon'), () => this.openHome());
+    this.commands = [
+      { id: 'open', key: 'openCommand', callback: () => this.openHome() },
+      { id: 'set-template', key: 'setCommand', callback: () => new SaveTemplateModal(this).open() },
+      { id: 'create-vault', key: 'createCommand', callback: () => new CreateVaultModal(this).open() },
+    ].map(({ id, key, callback }) => ({ key, command: this.addCommand({ id, name: this.t(key), callback }) }));
+    this.settingTab = new TemplateSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
+  }
+  locale() {
+    let client;
+    try { client = getLanguage(); } catch { client = 'en'; }
+    return i18n.resolveLanguage(this.settings.language, client);
+  }
+  t(key, values) { return i18n.translate(this.locale(), key, values); }
+  error(error) { return i18n.formatError(error, this.locale()); }
+  async setLanguage(value) {
+    const previous = this.settings.language;
+    this.settings.language = ['auto', 'en', 'zh'].includes(value) ? value : 'auto';
+    try { await this.save(); } catch (error) { this.settings.language = previous; throw error; }
+    setTooltip(this.ribbon, this.t('ribbon'));
+    this.ribbon.setAttribute('aria-label', this.t('ribbon'));
+    for (const { key, command } of this.commands) command.name = this.manifest.name + ': ' + this.t(key);
+    for (const modal of this.modals) modal.render();
+    this.settingTab.display();
   }
   openHome() { new HomeModal(this).open(); }
   async save() { await this.saveData(this.settings); }
   getPluginDir() { return path.join(this.root, this.app.vault.configDir, 'plugins', this.manifest.id); }
+  onunload() { for (const modal of [...(this.modals || [])]) modal.close(); }
 }
 
-class HomeModal extends Modal {
-  constructor(plugin) { super(plugin.app); this.plugin = plugin; }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass('vault-template-modal');
-    contentEl.createEl('h2', { text: '仓库模板' });
-    description(contentEl, '把常用笔记准备一次，之后的新仓库直接带上。');
-    const card = contentEl.createDiv({ cls: 'vault-template-card' });
-    card.createEl('strong', { text: '当前使用的模板' });
+class TemplateModal extends Modal {
+  constructor(plugin) { super(plugin.app); this.plugin = plugin; this.t = (key, values) => plugin.t(key, values); }
+  onOpen() { this.plugin.modals.add(this); this.render(); }
+  onClose() { this.plugin.modals.delete(this); this.contentEl.empty(); }
+  begin(title) { this.contentEl.empty(); this.contentEl.addClass('vault-template-modal'); this.setTitle(this.t(title)); return this.contentEl; }
+  run(button, callback) { return action(this.plugin, button, callback); }
+}
+
+class HomeModal extends TemplateModal {
+  render() {
+    const el = this.begin('title');
+    languageSetting(el, this.plugin);
+    description(el, this.t('intro'));
+    const card = el.createDiv({ cls: 'vault-template-card' });
+    card.createEl('strong', { text: this.t('current') });
     card.createEl('p', { text: this.plugin.settings.templatePath, cls: 'vault-template-path' });
-    new Setting(contentEl).setName('从模板新建仓库').setDesc('输入名称与存放位置，自动复制模板和本插件。')
-      .addButton(b => b.setButtonText('新建仓库').setCta().onClick(() => { this.close(); new CreateVaultModal(this.plugin).open(); }));
-    new Setting(contentEl).setName('设置仓库模板').setDesc('选择当前仓库中的笔记，保存成可重复使用的模板。')
-      .addButton(b => b.setButtonText('设置模板').onClick(() => { this.close(); new SaveTemplateModal(this.plugin).open(); }));
-    new Setting(contentEl).setName('Markdown 语法速查').setDesc('查看标题、代码、图片、链接和表格的写法。')
-      .addButton(b => b.setButtonText('打开笔记').onClick(() => action(b, async () => {
+    new Setting(el).setName(this.t('createTitle')).setDesc(this.t('createHint'))
+      .addButton(b => b.setButtonText(this.t('create')).setCta().onClick(() => { this.close(); new CreateVaultModal(this.plugin).open(); }));
+    new Setting(el).setName(this.t('setTitle')).setDesc(this.t('setHint'))
+      .addButton(b => b.setButtonText(this.t('set')).onClick(() => { this.close(); new SaveTemplateModal(this.plugin).open(); }));
+    new Setting(el).setName(this.t('guide')).setDesc(this.t('guideHint'))
+      .addButton(b => b.setButtonText(this.t('openNote')).onClick(() => this.run(b, async () => {
         const note = this.app.vault.getAbstractFileByPath('模板/Markdown常用语法笔记.md');
-        if (!note) throw new Error('当前仓库尚未包含速查笔记，请从准备好的模板创建仓库。');
+        if (!note) throw new ops.TemplateError('missingGuide');
         await this.app.workspace.getLeaf(false).openFile(note); this.close();
       })));
-    description(contentEl, '请使用这里的“新建仓库”。Obsidian 自带的“创建新仓库”不会自动套用本插件的模板。');
+    description(el, this.t('nativeHint'));
   }
-  onClose() { this.contentEl.empty(); }
 }
 
-class CreateVaultModal extends Modal {
-  constructor(plugin) { super(plugin.app); this.plugin = plugin; }
-  onOpen() {
-    const el = this.contentEl;
-    el.addClass('vault-template-modal');
-    el.createEl('h2', { text: '从模板新建仓库' });
-    let name = '', parent = this.plugin.settings.parentPath;
-    description(el, '新仓库会带上模板里的笔记、附件和“仓库模板”插件。');
-    new Setting(el).setName('仓库名称').addText(t => t.setPlaceholder('例如：项目笔记').onChange(v => { name = v; }));
-    new Setting(el).setName('存放位置').setDesc('现有的父文件夹，例如 D:\\Obsidianhub。')
-      .addText(t => t.setValue(parent).onChange(v => { parent = v.trim(); }));
-    const preview = el.createEl('p', { cls: 'vault-template-path', text: '模板：' + this.plugin.settings.templatePath });
-    let valid = false;
+class CreateVaultModal extends TemplateModal {
+  constructor(plugin) { super(plugin); this.name = ''; this.parent = plugin.settings.parentPath; }
+  render() {
+    const el = this.begin('createTitle');
+    description(el, this.t('createIntro'));
+    new Setting(el).setName(this.t('vaultName')).addText(t => t.setValue(this.name).setPlaceholder(this.t('vaultExample')).onChange(v => { this.name = v; }));
+    new Setting(el).setName(this.t('location')).setDesc(this.t('locationHint'))
+      .addText(t => t.setValue(this.parent).onChange(v => { this.parent = v.trim(); }));
+    const preview = el.createEl('p', { cls: 'vault-template-path', text: this.t('templatePath', { path: this.plugin.settings.templatePath }) });
     ops.listTemplate(this.plugin.settings.templatePath).then(result => {
-      valid = true;
-      preview.setText('模板包含 ' + result.files.filter(f => f.endsWith('.md')).length + ' 篇笔记；' + result.files.length + ' 个文件。');
-    }).catch(error => preview.setText('模板不可用：' + error.message));
-    new Setting(el).addButton(b => b.setButtonText('创建仓库').setCta().onClick(() => action(b, async () => {
-      if (!valid) throw new Error('请先在“设置仓库模板”中指定可用的模板。');
-      const result = await ops.createVault({ templatePath: this.plugin.settings.templatePath, parent, name: name.trim(), vaultRoot: this.plugin.root, pluginDir: this.plugin.getPluginDir(), settings: this.plugin.settings });
-      this.plugin.settings.parentPath = parent;
-      try { await this.plugin.save(); } catch (error) { new Notice('仓库已创建，但默认位置未能保存：' + error.message); }
+      preview.setText(this.t('preview', { notes: result.files.filter(f => f.toLowerCase().endsWith('.md')).length, files: result.files.length }));
+    }).catch(error => preview.setText(this.t('unavailable', { reason: this.plugin.error(error) })));
+    new Setting(el).addButton(b => b.setButtonText(this.t('createButton')).setCta().onClick(() => this.run(b, async () => {
+      const result = await ops.createVault({ templatePath: this.plugin.settings.templatePath, parent: this.parent, name: this.name.trim(), vaultRoot: this.plugin.root, pluginDir: this.plugin.getPluginDir(), settings: this.plugin.settings });
+      this.plugin.settings.parentPath = this.parent;
+      try { await this.plugin.save(); } catch (error) { new Notice(this.t('locationNotSaved', { reason: this.plugin.error(error) })); }
       this.close(); new CreatedModal(this.plugin, result).open();
-    }))).addButton(b => b.setButtonText('取消').onClick(() => this.close()));
+    }))).addButton(b => b.setButtonText(this.t('cancel')).onClick(() => this.close()));
   }
-  onClose() { this.contentEl.empty(); }
 }
 
-class CreatedModal extends Modal {
-  constructor(plugin, result) { super(plugin.app); this.result = result; }
-  onOpen() {
-    const el = this.contentEl;
-    el.createEl('h2', { text: '仓库已创建' });
+class CreatedModal extends TemplateModal {
+  constructor(plugin, result) { super(plugin); this.result = result; }
+  render() {
+    const el = this.begin('created');
     el.createEl('p', { text: this.result.target, cls: 'vault-template-path' });
-    description(el, '首次打开时，在仓库管理器中选择“打开文件夹为仓库”，然后选择上面的文件夹。');
-    description(el, '新仓库已携带本插件。首次打开如处于受限模式，请在第三方插件设置中启用“仓库模板”。');
-    new Setting(el).addButton(b => b.setButtonText('复制路径').onClick(() => action(b, async () => {
-      await navigator.clipboard.writeText(this.result.target); new Notice('仓库路径已复制');
-    }))).addButton(b => b.setButtonText('打开仓库管理器').setCta().onClick(() => {
-      window.open('obsidian://choose-vault');
-    }));
+    description(el, this.t('openInstructions'));
+    description(el, this.t('enableInstructions'));
+    new Setting(el).addButton(b => b.setButtonText(this.t('copyPath')).onClick(() => this.run(b, async () => {
+      await navigator.clipboard.writeText(this.result.target); new Notice(this.t('copied'));
+    }))).addButton(b => b.setButtonText(this.t('manager')).setCta().onClick(() => { window.open('obsidian://choose-vault'); }));
   }
-  onClose() { this.contentEl.empty(); }
 }
 
-class SaveTemplateModal extends Modal {
-  constructor(plugin) { super(plugin.app); this.plugin = plugin; }
-  onOpen() {
-    const el = this.contentEl;
-    el.addClass('vault-template-modal');
-    el.createEl('h2', { text: '设置仓库模板' });
-    description(el, '勾选希望每个新仓库都具备的笔记。保存的是独立副本，后续修改原笔记不会自动改变已有模板。');
-    let existing = this.plugin.settings.templatePath;
-    new Setting(el).setName('使用已有模板文件夹').addText(t => t.setValue(existing).onChange(v => { existing = v.trim(); }))
-      .addButton(b => b.setButtonText('设为当前模板').onClick(() => action(b, async () => {
-        const result = await ops.listTemplate(existing);
+class SaveTemplateModal extends TemplateModal {
+  constructor(plugin) {
+    super(plugin);
+    this.existing = plugin.settings.templatePath;
+    this.files = this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
+    this.selected = new Set(plugin.settings.selected.filter(p => this.files.some(f => f.path === p)));
+    this.query = '';
+    this.parent = plugin.settings.parentPath;
+    this.name = this.t('templatePrefix') + new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  }
+  render() {
+    const el = this.begin('setTitle');
+    description(el, this.t('saveIntro'));
+    new Setting(el).setName(this.t('existingFolder')).addText(t => t.setValue(this.existing).onChange(v => { this.existing = v.trim(); }))
+      .addButton(b => b.setButtonText(this.t('useTemplate')).onClick(() => this.run(b, async () => {
+        const result = await ops.listTemplate(this.existing);
         this.plugin.settings.templatePath = result.root;
-        await this.plugin.save(); new Notice('已设置仓库模板'); this.close(); this.plugin.openHome();
+        await this.plugin.save(); new Notice(this.t('templateSet')); this.close(); this.plugin.openHome();
       })));
-    el.createEl('h3', { text: '从当前仓库保存新模板' });
-    const files = this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
-    const selected = new Set(this.plugin.settings.selected.filter(p => files.some(f => f.path === p)));
-    let query = '';
-    const search = new Setting(el).setName('选择笔记');
-    search.addText(t => t.setPlaceholder('输入文件名筛选').onChange(v => { query = v.toLowerCase(); render(); }));
+    new Setting(el).setName(this.t('saveHeading')).setHeading();
+    new Setting(el).setName(this.t('selectNotes')).addText(t => t.setValue(this.query).setPlaceholder(this.t('search')).onChange(v => { this.query = v.toLowerCase(); renderList(); }));
     const count = el.createEl('p', { cls: 'vault-template-muted' });
     const list = el.createDiv({ cls: 'vault-template-list' });
-    const render = () => {
-      list.empty(); count.setText('已选择 ' + selected.size + ' 篇笔记');
-      for (const file of files.filter(f => f.path.toLowerCase().includes(query))) {
-        new Setting(list).setName(file.path).addToggle(t => t.setValue(selected.has(file.path)).onChange(on => {
-          if (on) selected.add(file.path); else selected.delete(file.path);
-          count.setText('已选择 ' + selected.size + ' 篇笔记');
+    const renderList = () => {
+      list.empty(); count.setText(this.t('selected', { count: this.selected.size }));
+      for (const file of this.files.filter(f => f.path.toLowerCase().includes(this.query))) {
+        new Setting(list).setName(file.path).addToggle(t => t.setValue(this.selected.has(file.path)).onChange(on => {
+          if (on) this.selected.add(file.path); else this.selected.delete(file.path);
+          count.setText(this.t('selected', { count: this.selected.size }));
         }));
       }
     };
-    render();
-    let parent = this.plugin.settings.parentPath;
-    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-    let name = '仓库模板-' + stamp;
-    new Setting(el).setName('模板名称').addText(t => t.setValue(name).onChange(v => { name = v; }));
-    new Setting(el).setName('模板存放位置').setDesc('模板应保存在当前仓库之外。')
-      .addText(t => t.setValue(parent).onChange(v => { parent = v.trim(); }));
-    description(el, '会一并复制 Obsidian 已识别的图片、PDF 等附件引用；关联笔记请自行勾选。');
-    new Setting(el).addButton(b => b.setButtonText('保存并设为仓库模板').setCta().onClick(() => action(b, async () => {
+    renderList();
+    new Setting(el).setName(this.t('templateName')).addText(t => t.setValue(this.name).onChange(v => { this.name = v; }));
+    new Setting(el).setName(this.t('templateLocation')).setDesc(this.t('outsideHint'))
+      .addText(t => t.setValue(this.parent).onChange(v => { this.parent = v.trim(); }));
+    description(el, this.t('attachmentHint'));
+    new Setting(el).addButton(b => b.setButtonText(this.t('saveTemplate')).setCta().onClick(() => this.run(b, async () => {
       const attachments = new Set();
-      for (const file of selected) {
+      for (const file of this.selected) {
         for (const linked of Object.keys(this.app.metadataCache.resolvedLinks[file] || {})) {
           const item = this.app.vault.getAbstractFileByPath(linked);
           if (item && item.extension && !['md', 'canvas', 'base'].includes(item.extension)) attachments.add(linked);
         }
       }
-      const result = await ops.snapshot({ vaultRoot: this.plugin.root, selected: [...selected], attachments: [...attachments], parent, name: name.trim() });
+      const result = await ops.snapshot({ vaultRoot: this.plugin.root, selected: [...this.selected], attachments: [...attachments], parent: this.parent, name: this.name.trim(), configDir: this.app.vault.configDir });
       this.plugin.settings.templatePath = result.target;
-      this.plugin.settings.selected = [...selected];
-      await this.plugin.save(); new Notice('已保存模板，可用于创建新仓库'); this.close(); this.plugin.openHome();
+      this.plugin.settings.selected = [...this.selected];
+      await this.plugin.save(); new Notice(this.t('saved')); this.close(); this.plugin.openHome();
     })));
   }
-  onClose() { this.contentEl.empty(); }
 }
 
 class TemplateSettingTab extends PluginSettingTab {
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
   display() {
-    this.containerEl.empty();
-    this.containerEl.createEl('h2', { text: '仓库模板' });
-    description(this.containerEl, '模板：' + this.plugin.settings.templatePath);
-    new Setting(this.containerEl).setName('管理仓库模板').setDesc('选择模板内容，或从模板新建仓库。')
-      .addButton(b => b.setButtonText('打开').setCta().onClick(() => this.plugin.openHome()));
-    description(this.containerEl, '本插件仅在你点击保存或创建时写入文件。不会监控文件夹或自动修改其他已存在的仓库。');
+    const el = this.containerEl;
+    el.empty();
+    languageSetting(el, this.plugin);
+    description(el, this.plugin.t('templatePath', { path: this.plugin.settings.templatePath }));
+    new Setting(el).setName(this.plugin.t('manage')).setDesc(this.plugin.t('manageHint'))
+      .addButton(b => b.setButtonText(this.plugin.t('open')).setCta().onClick(() => this.plugin.openHome()));
+    description(el, this.plugin.t('localHint'));
   }
 }
 
